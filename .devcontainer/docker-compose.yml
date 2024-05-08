@@ -14,8 +14,8 @@ services:
         context: .
         dockerfile: Dockerfile
         args:
-          HTTP_PROXY: http://proxy-us.intel.com:911
-          HTTPS_PROXY: http://proxy-us.intel.com:912
+          HTTP_PROXY: http://proxy-us.yourproxy.com:911
+          HTTPS_PROXY: http://proxy-us.yourproxy.com:912
       runtime: nvidia
       environment:
         - NVIDIA_VISIBLE_DEVICES=all
