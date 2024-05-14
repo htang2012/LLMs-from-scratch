@@ -234,19 +234,12 @@ if __name__ == "__main__":
     # Instantiate dataloaders
     ###############################
 
-    url = "https://archive.ics.uci.edu/static/public/228/sms+spam+collection.zip"
-    zip_path = "sms_spam_collection.zip"
-    extract_to = "sms_spam_collection"
-    new_file_path = Path(extract_to) / "SMSSpamCollection.tsv"
-
-    base_path = Path(".")
-    file_names = ["train.csv", "val.csv", "test.csv"]
-    all_exist = all((base_path / file_name).exists() for file_name in file_names)
-
     pad_token_id = tokenizer.encode(tokenizer.pad_token)
 
+    base_path = Path(".")
+
     train_dataset = IMDBDataset(base_path / "train.csv", max_length=256, tokenizer=tokenizer, pad_token_id=pad_token_id)
-    val_dataset = IMDBDataset(base_path / "val.csv", max_length=256, tokenizer=tokenizer, pad_token_id=pad_token_id)
+    val_dataset = IMDBDataset(base_path / "validation.csv", max_length=256, tokenizer=tokenizer, pad_token_id=pad_token_id)
     test_dataset = IMDBDataset(base_path / "test.csv", max_length=256, tokenizer=tokenizer, pad_token_id=pad_token_id)
 
     num_workers = 0

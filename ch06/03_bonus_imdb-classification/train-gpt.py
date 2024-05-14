@@ -259,7 +259,7 @@ if __name__ == "__main__":
     elif args.model_size == "gpt2-large (774M)":
         in_features = 1280
     elif args.model_size == "gpt2-xl (1558M)":
-        in_features = 1280
+        in_features = 1600
     else:
         raise ValueError("Invalid --model_size argument")
 
@@ -286,14 +286,7 @@ if __name__ == "__main__":
     # Instantiate dataloaders
     ###############################
 
-    url = "https://archive.ics.uci.edu/static/public/228/sms+spam+collection.zip"
-    zip_path = "sms_spam_collection.zip"
-    extract_to = "sms_spam_collection"
-    new_file_path = Path(extract_to) / "SMSSpamCollection.tsv"
-
     base_path = Path(".")
-    file_names = ["train.csv", "val.csv", "test.csv"]
-    all_exist = all((base_path / file_name).exists() for file_name in file_names)
 
     tokenizer = tiktoken.get_encoding("gpt2")
 
