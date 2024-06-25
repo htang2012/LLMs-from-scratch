@@ -110,7 +110,7 @@ def evaluate_model(model, train_loader, val_loader, device, eval_iter):
 
 
 def train_classifier_simple(model, train_loader, val_loader, optimizer, device, num_epochs,
-                            eval_freq, eval_iter, tokenizer, max_steps=None):
+                            eval_freq, eval_iter, max_steps=None):
     # Initialize lists to track losses and tokens seen
     train_losses, val_losses, train_accs, val_accs = [], [], [], []
     examples_seen, global_step = 0, -1
@@ -120,7 +120,7 @@ def train_classifier_simple(model, train_loader, val_loader, optimizer, device, 
         model.train()  # Set model to training mode
 
         for input_batch, target_batch in train_loader:
-            optimizer.zero_grad()  # Reset loss gradients from previous epoch
+            optimizer.zero_grad()  # Reset loss gradients from previous batch iteration
             loss = calc_loss_batch(input_batch, target_batch, model, device)
             loss.backward()  # Calculate loss gradients
             optimizer.step()  # Update model weights using loss gradients
@@ -279,7 +279,7 @@ if __name__ == "__main__":
     train_losses, val_losses, train_accs, val_accs, examples_seen = train_classifier_simple(
         model, train_loader, val_loader, optimizer, device,
         num_epochs=num_epochs, eval_freq=50, eval_iter=20,
-        tokenizer=tokenizer, max_steps=None
+        max_steps=None
     )
 
     end_time = time.time()
