@@ -28,12 +28,11 @@ from torch.utils.data import Dataset, DataLoader
 
 class GPTDatasetV1(Dataset):
     def __init__(self, txt, tokenizer, max_length, stride):
-        self.tokenizer = tokenizer
         self.input_ids = []
         self.target_ids = []
 
         # Tokenize the entire text
-        token_ids = tokenizer.encode(txt)
+        token_ids = tokenizer.encode(txt, allowed_special={"<|endoftext|>"})
 
         # Use a sliding window to chunk the book into overlapping sequences of max_length
         for i in range(0, len(token_ids) - max_length, stride):
@@ -362,7 +361,7 @@ def evaluate_model(model, train_loader, val_loader, device, eval_iter):
 #####################################
 
 
-def download_and_unzip(url, zip_path, extracted_path, data_file_path):
+def download_and_unzip_spam_data(url, zip_path, extracted_path, data_file_path):
     if data_file_path.exists():
         print(f"{data_file_path} already exists. Skipping download and extraction.")
         return
@@ -485,7 +484,7 @@ def calc_loss_batch(input_batch, target_batch, model, device):
 
 # Overall the same as `train_model_simple` in chapter 5
 def train_classifier_simple(model, train_loader, val_loader, optimizer, device, num_epochs,
-                            eval_freq, eval_iter, tokenizer):
+                            eval_freq, eval_iter):
     # Initialize lists to track losses and tokens seen
     train_losses, val_losses, train_accs, val_accs = [], [], [], []
     examples_seen, global_step = 0, -1
@@ -495,7 +494,7 @@ def train_classifier_simple(model, train_loader, val_loader, optimizer, device, 
         model.train()  # Set model to training mode
 
         for input_batch, target_batch in train_loader:
-            optimizer.zero_grad()  # Reset loss gradients from previous epoch
+            optimizer.zero_grad()  # Reset loss gradients from previous batch iteration
             loss = calc_loss_batch(input_batch, target_batch, model, device)
             loss.backward()  # Calculate loss gradients
             optimizer.step()  # Update model weights using loss gradients

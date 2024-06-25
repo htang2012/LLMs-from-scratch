@@ -4,6 +4,7 @@
 # Code: https://github.com/rasbt/LLMs-from-scratch
 
 import argparse
+import math
 import os
 from pathlib import Path
 import time
@@ -20,8 +21,33 @@ from gpt_download import download_and_load_gpt2
 from previous_chapters import GPTModel, load_weights_into_gpt
 
 
+class LoRALayer(torch.nn.Module):
+    def __init__(self, in_dim, out_dim, rank, alpha):
+        super().__init__()
+        self.A = torch.nn.Parameter(torch.empty(in_dim, rank))
+        torch.nn.init.kaiming_uniform_(self.A, a=math.sqrt(5))
+        self.B = torch.nn.Parameter(torch.zeros(rank, out_dim))
+        self.alpha = alpha
+
+    def forward(self, x):
+        x = self.alpha * (x @ self.A @ self.B)
+        return x
+
+
+class LinearWithLoRA(torch.nn.Module):
+    def __init__(self, linear, rank, alpha):
+        super().__init__()
+        self.linear = linear
+        self.lora = LoRALayer(
+            linear.in_features, linear.out_features, rank, alpha
+        )
+
+    def forward(self, x):
+        return self.linear(x) + self.lora(x)
+
+
 class SpamDataset(Dataset):
-    def __init__(self, csv_file, tokenizer, max_length=None, pad_token_id=50256):
+    def __init__(self, csv_file, tokenizer, max_length=None, pad_token_id=50256, no_padding=False):
         self.data = pd.read_csv(csv_file)
         self.max_length = max_length if max_length is not None else self._longest_encoded_length(tokenizer)
 
@@ -30,11 +56,13 @@ class SpamDataset(Dataset):
             tokenizer.encode(text)[:self.max_length]
             for text in self.data["Text"]
         ]
-        # Pad sequences to the longest sequence
-        self.encoded_texts = [
-            et + [pad_token_id] * (self.max_length - len(et))
-            for et in self.encoded_texts
-        ]
+
+        if not no_padding:
+            # Pad sequences to the longest sequence
+            self.encoded_texts = [
+                et + [pad_token_id] * (self.max_length - len(et))
+                for et in self.encoded_texts
+            ]
 
     def __getitem__(self, index):
         encoded = self.encoded_texts[index]
@@ -89,7 +117,7 @@ def random_split(df, train_frac, validation_frac):
     return train_df, validation_df, test_df
 
 
-def create_dataset_csvs(data_file_path):
+def create_dataset_csvs(new_file_path):
     df = pd.read_csv(new_file_path, sep="\t", header=None, names=["Label", "Text"])
 
     # Create balanced dataset
@@ -126,7 +154,7 @@ def instantiate_model(choose_model, load_weights):
 
     if not load_weights:
         torch.manual_seed(123)
-    model = GPTModel(BASE_CONFIG)
+    model = GPTModel(BASE_CONFIG, disable_causal_mask=args.disable_causal_mask)
 
     if load_weights:
         model_size = choose_model.split(" ")[-1].lstrip("(").rstrip(")")
@@ -137,14 +165,16 @@ def instantiate_model(choose_model, load_weights):
     return model
 
 
-def calc_loss_batch(input_batch, target_batch, model, device, trainable_token=-1):
+def calc_loss_batch(input_batch, target_batch, model, device,
+                    trainable_token_pos=-1, ignore_index=-100):
     input_batch, target_batch = input_batch.to(device), target_batch.to(device)
-    logits = model(input_batch)[:, trainable_token, :]  # Logits of last output token
-    loss = torch.nn.functional.cross_entropy(logits, target_batch)
+    logits = model(input_batch)[:, trainable_token_pos, :]  # Logits of last output token
+    loss = torch.nn.functional.cross_entropy(logits, target_batch, ignore_index=ignore_index)
     return loss
 
 
-def calc_loss_loader(data_loader, model, device, num_batches=None, trainable_token=-1):
+def calc_loss_loader(data_loader, model, device,
+                     num_batches=None, trainable_token_pos=-1, ignore_index=-100):
     total_loss = 0.
     if len(data_loader) == 0:
         return float("nan")
@@ -156,7 +186,10 @@ def calc_loss_loader(data_loader, model, device, num_batches=None, trainable_tok
         num_batches = min(num_batches, len(data_loader))
     for i, (input_batch, target_batch) in enumerate(data_loader):
         if i < num_batches:
-            loss = calc_loss_batch(input_batch, target_batch, model, device, trainable_token=trainable_token)
+            loss = calc_loss_batch(
+                input_batch, target_batch, model, device,
+                trainable_token_pos=trainable_token_pos, ignore_index=ignore_index
+            )
             total_loss += loss.item()
         else:
             break
@@ -164,7 +197,7 @@ def calc_loss_loader(data_loader, model, device, num_batches=None, trainable_tok
 
 
 @torch.no_grad()  # Disable gradient tracking for efficiency
-def calc_accuracy_loader(data_loader, model, device, num_batches=None, trainable_token=-1):
+def calc_accuracy_loader(data_loader, model, device, num_batches=None, trainable_token_pos=-1):
     model.eval()
     correct_predictions, num_examples = 0, 0
 
@@ -175,7 +208,7 @@ def calc_accuracy_loader(data_loader, model, device, num_batches=None, trainable
     for i, (input_batch, target_batch) in enumerate(data_loader):
         if i < num_batches:
             input_batch, target_batch = input_batch.to(device), target_batch.to(device)
-            logits = model(input_batch)[:, trainable_token, :]  # Logits of last output token
+            logits = model(input_batch)[:, trainable_token_pos, :]  # Logits of last output token
             predicted_labels = torch.argmax(logits, dim=-1)
 
             num_examples += predicted_labels.shape[0]
@@ -185,17 +218,25 @@ def calc_accuracy_loader(data_loader, model, device, num_batches=None, trainable
     return correct_predictions / num_examples
 
 
-def evaluate_model(model, train_loader, val_loader, device, eval_iter, trainable_token=-1):
+def evaluate_model(model, train_loader, val_loader, device,
+                   eval_iter, trainable_token_pos=-1, ignore_index=-100):
     model.eval()
     with torch.no_grad():
-        train_loss = calc_loss_loader(train_loader, model, device, num_batches=eval_iter, trainable_token=trainable_token)
-        val_loss = calc_loss_loader(val_loader, model, device, num_batches=eval_iter, trainable_token=trainable_token)
+        train_loss = calc_loss_loader(
+            train_loader, model, device, num_batches=eval_iter,
+            trainable_token_pos=trainable_token_pos, ignore_index=ignore_index
+        )
+        val_loss = calc_loss_loader(
+            val_loader, model, device, num_batches=eval_iter,
+            trainable_token_pos=trainable_token_pos, ignore_index=ignore_index
+        )
     model.train()
     return train_loss, val_loss
 
 
 def train_classifier_simple(model, train_loader, val_loader, optimizer, device, num_epochs,
-                            eval_freq, eval_iter, tokenizer, max_steps=None, trainable_token=-1):
+                            eval_freq, eval_iter, max_steps=None, trainable_token_pos=-1,
+                            accumulation_steps=1, ignore_index=-100):
     # Initialize lists to track losses and tokens seen
     train_losses, val_losses, train_accs, val_accs = [], [], [], []
     examples_seen, global_step = 0, -1
@@ -204,18 +245,33 @@ def train_classifier_simple(model, train_loader, val_loader, optimizer, device, 
     for epoch in range(num_epochs):
         model.train()  # Set model to training mode
 
-        for input_batch, target_batch in train_loader:
-            optimizer.zero_grad()  # Reset loss gradients from previous epoch
-            loss = calc_loss_batch(input_batch, target_batch, model, device, trainable_token=trainable_token)
+        for batch_idx, (input_batch, target_batch) in enumerate(train_loader):
+            loss = calc_loss_batch(
+                input_batch, target_batch, model, device,
+                trainable_token_pos=trainable_token_pos, ignore_index=ignore_index
+            )
+
+            # Use gradient accumulation if accumulation_steps > 1
+            # See https://sebastianraschka.com/blog/2023/llm-grad-accumulation.html
+            # for an explanation
+            loss /= accumulation_steps
+
             loss.backward()  # Calculate loss gradients
-            optimizer.step()  # Update model weights using loss gradients
+
+            # Use gradient accumulation if accumulation_steps > 1
+            if batch_idx % accumulation_steps == 0:
+                optimizer.step()  # Update model weights using loss gradients
+                optimizer.zero_grad()  # Reset loss gradients from previous batch iteration
+
             examples_seen += input_batch.shape[0]  # New: track examples instead of tokens
             global_step += 1
 
             # Optional evaluation step
             if global_step % eval_freq == 0:
                 train_loss, val_loss = evaluate_model(
-                    model, train_loader, val_loader, device, eval_iter, trainable_token=trainable_token)
+                    model, train_loader, val_loader, device, eval_iter,
+                    trainable_token_pos=trainable_token_pos, ignore_index=ignore_index
+                )
                 train_losses.append(train_loss)
                 val_losses.append(val_loss)
                 print(f"Ep {epoch+1} (Step {global_step:06d}): "
@@ -225,8 +281,8 @@ def train_classifier_simple(model, train_loader, val_loader, optimizer, device, 
                 break
 
         # New: Calculate accuracy after each epoch
-        train_accuracy = calc_accuracy_loader(train_loader, model, device, num_batches=eval_iter, trainable_token=trainable_token)
-        val_accuracy = calc_accuracy_loader(val_loader, model, device, num_batches=eval_iter, trainable_token=trainable_token)
+        train_accuracy = calc_accuracy_loader(train_loader, model, device, num_batches=eval_iter, trainable_token_pos=trainable_token_pos)
+        val_accuracy = calc_accuracy_loader(val_loader, model, device, num_batches=eval_iter, trainable_token_pos=trainable_token_pos)
         print(f"Training accuracy: {train_accuracy*100:.2f}% | ", end="")
         print(f"Validation accuracy: {val_accuracy*100:.2f}%")
         train_accs.append(train_accuracy)
@@ -236,6 +292,16 @@ def train_classifier_simple(model, train_loader, val_loader, optimizer, device, 
             break
 
     return train_losses, val_losses, train_accs, val_accs, examples_seen
+
+
+def replace_linear_with_lora(model, rank, alpha):
+    for name, module in model.named_children():
+        if isinstance(module, torch.nn.Linear):
+            # Replace the Linear layer with LinearWithLoRA
+            setattr(model, name, LinearWithLoRA(module, rank, alpha))
+        else:
+            # Recursively apply the same function to child modules
+            replace_linear_with_lora(module, rank, alpha)
 
 
 if __name__ == "__main__":
@@ -263,15 +329,15 @@ if __name__ == "__main__":
         type=str,
         default="last_block",
         help=(
-            "Which layers to train. Options: 'all', 'last_block', 'last_layer'."
+            "Which layers to train. Options: 'all', 'last_block', 'last_two_blocks', 'last_layer', 'lora'."
         )
     )
     parser.add_argument(
-        "--trainable_token",
+        "--trainable_token_pos",
         type=str,
         default="last",
         help=(
-            "Which token to train. Options: 'first', 'last'."
+            "Which token position to train. Options: 'first', 'last'."
         )
     )
     parser.add_argument(
@@ -283,15 +349,87 @@ if __name__ == "__main__":
             "Options: 'longest_training_example', 'model_context_length' or integer value."
         )
     )
+    parser.add_argument(
+        "--lora_rank",
+        type=int,
+        default=8,
+        help=(
+            "The LoRA rank when choosing `--trainable_layers lora`"
+        )
+    )
+    parser.add_argument(
+        "--lora_alpha",
+        type=int,
+        default=8,
+        help=(
+            "The LoRA alpha value when choosing `--trainable_layers lora`"
+        )
+    )
+    parser.add_argument(
+        "--no_padding",
+        action='store_true',
+        default=False,
+        help=(
+            "Disable padding, which means each example may have a different lenght."
+            " This requires setting `--batch_size 1`."
+        )
+    )
+    parser.add_argument(
+        "--num_epochs",
+        type=int,
+        default=5,
+        help=(
+            "Number of training epochs."
+        )
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=8,
+        help=(
+            "The batch size used for training."
+        )
+    )
+
+    parser.add_argument(
+        "--accumulation_steps",
+        type=int,
+        default=1,
+        help=(
+            "Accumulation steps to allow for gradient accumulation."
+            " See https://sebastianraschka.com/blog/2023/llm-grad-accumulation.html for explanation."
+            " For example, setting `batch_size=8` and `accumulation_steps=1` compute the exact same"
+            " loss and weight updates as setting `batch_size=1` and `accumulation_steps=8`, however,"
+            " the latter setting uses more iterations."
+        )
+    )
+
+    parser.add_argument(
+        "--disable_causal_mask",
+        action='store_true',
+        default=False,
+        help=(
+            "Disables the causal attention mask."
+        )
+    )
+
+    parser.add_argument(
+        "--ignore_index",
+        type=int,
+        default=-100,
+        help=(
+            "Sets the `ignore_index` in the cross entropy loss."
+        )
+    )
 
     args = parser.parse_args()
 
-    if args.trainable_token == "first":
-        args.trainable_token = 0
-    elif args.trainable_token == "last":
-        args.trainable_token = -1
+    if args.trainable_token_pos == "first":
+        args.trainable_token_pos = 0
+    elif args.trainable_token_pos == "last":
+        args.trainable_token_pos = -1
     else:
-        raise ValueError("Invalid --trainable_token argument")
+        raise ValueError("Invalid --trainable_token_pos argument")
 
     ###############################
     # Load model
@@ -315,7 +453,7 @@ if __name__ == "__main__":
     elif args.model_size == "gpt2-large (774M)":
         in_features = 1280
     elif args.model_size == "gpt2-xl (1558M)":
-        in_features = 1280
+        in_features = 1600
     else:
         raise ValueError("Invalid --model_size argument")
 
@@ -324,14 +462,19 @@ if __name__ == "__main__":
 
     if args.trainable_layers == "last_layer":
         pass
-    elif args.trainable_layers == "last_block":
+    elif args.trainable_layers == "last_block" or args.trainable_layers == "last_two_blocks":
         for param in model.trf_blocks[-1].parameters():
             param.requires_grad = True
         for param in model.final_norm.parameters():
             param.requires_grad = True
+        if args.trainable_layers == "last_two_blocks":
+            for param in model.trf_blocks[-2].parameters():
+                param.requires_grad = True
     elif args.trainable_layers == "all":
         for param in model.parameters():
             param.requires_grad = True
+    elif args.trainable_layers == "lora":
+        replace_linear_with_lora(model, rank=args.lora_rank, alpha=args.lora_alpha)
     else:
         raise ValueError("Invalid --trainable_layers argument.")
 
@@ -358,30 +501,34 @@ if __name__ == "__main__":
     tokenizer = tiktoken.get_encoding("gpt2")
 
     train_dataset = None
-    if args.context_length == "model_context_length":
-        max_length = model.pos_emb.weight.shape[0]
-    elif args.context_length == "longest_training_example":
-        train_dataset = SpamDataset(base_path / "train.csv", max_length=None, tokenizer=tokenizer)
-        max_length = train_dataset.max_length
+
+    if args.no_padding:
+        max_length = None
+
     else:
-        try:
-            max_length = int(args.context_length)
-        except ValueError:
-            raise ValueError("Invalid --context_length argument")
+        if args.context_length == "model_context_length":
+            max_length = model.pos_emb.weight.shape[0]
+        elif args.context_length == "longest_training_example":
+            train_dataset = SpamDataset(base_path / "train.csv", max_length=None, tokenizer=tokenizer, no_padding=args.no_padding)
+            max_length = train_dataset.max_length
+        else:
+            try:
+                max_length = int(args.context_length)
+            except ValueError:
+                raise ValueError("Invalid --context_length argument")
 
     if train_dataset is None:
-        train_dataset = SpamDataset(base_path / "train.csv", max_length=max_length, tokenizer=tokenizer)
-    val_dataset = SpamDataset(base_path / "validation.csv", max_length=max_length, tokenizer=tokenizer)
-    test_dataset = SpamDataset(base_path / "test.csv", max_length=max_length, tokenizer=tokenizer)
+        train_dataset = SpamDataset(base_path / "train.csv", max_length=max_length, tokenizer=tokenizer, no_padding=args.no_padding)
+    val_dataset = SpamDataset(base_path / "validation.csv", max_length=max_length, tokenizer=tokenizer, no_padding=args.no_padding)
+    test_dataset = SpamDataset(base_path / "test.csv", max_length=max_length, tokenizer=tokenizer, no_padding=args.no_padding)
 
     tokenizer = tiktoken.get_encoding("gpt2")
 
     num_workers = 0
-    batch_size = 8
 
     train_loader = DataLoader(
         dataset=train_dataset,
-        batch_size=batch_size,
+        batch_size=args.batch_size,
         shuffle=True,
         num_workers=num_workers,
         drop_last=True,
@@ -389,16 +536,22 @@ if __name__ == "__main__":
 
     val_loader = DataLoader(
         dataset=val_dataset,
-        batch_size=batch_size,
+        batch_size=args.batch_size,
         num_workers=num_workers,
         drop_last=False,
     )
 
     test_loader = DataLoader(
         dataset=test_dataset,
-        batch_size=batch_size,
+        batch_size=args.batch_size,
         num_workers=num_workers,
         drop_last=False,
+    )
+
+    assert train_dataset.max_length <= model.pos_emb.weight.shape[0], (
+        f"Dataset length {train_dataset.max_length} exceeds model's context "
+        f"length {model.pos_emb.weight.shape[0]}. Reinitialize data sets with "
+        f"`max_length={model.pos_emb.weight.shape[0]}`"
     )
 
     ###############################
@@ -409,11 +562,11 @@ if __name__ == "__main__":
     torch.manual_seed(123)
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.1)
 
-    num_epochs = 5
     train_losses, val_losses, train_accs, val_accs, examples_seen = train_classifier_simple(
         model, train_loader, val_loader, optimizer, device,
-        num_epochs=num_epochs, eval_freq=50, eval_iter=5,
-        tokenizer=tokenizer, max_steps=None, trainable_token=args.trainable_token
+        num_epochs=args.num_epochs, eval_freq=50, eval_iter=5,
+        max_steps=None, trainable_token_pos=args.trainable_token_pos,
+        accumulation_steps=args.accumulation_steps
     )
 
     end_time = time.time()
@@ -424,9 +577,9 @@ if __name__ == "__main__":
     # Evaluate model
     ###############################
 
-    train_accuracy = calc_accuracy_loader(train_loader, model, device, trainable_token=args.trainable_token)
-    val_accuracy = calc_accuracy_loader(val_loader, model, device, trainable_token=args.trainable_token)
-    test_accuracy = calc_accuracy_loader(test_loader, model, device, trainable_token=args.trainable_token)
+    train_accuracy = calc_accuracy_loader(train_loader, model, device, trainable_token_pos=args.trainable_token_pos)
+    val_accuracy = calc_accuracy_loader(val_loader, model, device, trainable_token_pos=args.trainable_token_pos)
+    test_accuracy = calc_accuracy_loader(test_loader, model, device, trainable_token_pos=args.trainable_token_pos)
 
     print(f"Training accuracy: {train_accuracy*100:.2f}%")
     print(f"Validation accuracy: {val_accuracy*100:.2f}%")

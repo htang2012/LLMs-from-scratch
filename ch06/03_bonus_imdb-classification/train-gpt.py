@@ -139,7 +139,7 @@ def evaluate_model(model, train_loader, val_loader, device, eval_iter, trainable
 
 
 def train_classifier_simple(model, train_loader, val_loader, optimizer, device, num_epochs,
-                            eval_freq, eval_iter, tokenizer, max_steps=None, trainable_token=-1):
+                            eval_freq, eval_iter, max_steps=None, trainable_token=-1):
     # Initialize lists to track losses and tokens seen
     train_losses, val_losses, train_accs, val_accs = [], [], [], []
     examples_seen, global_step = 0, -1
@@ -149,7 +149,7 @@ def train_classifier_simple(model, train_loader, val_loader, optimizer, device, 
         model.train()  # Set model to training mode
 
         for input_batch, target_batch in train_loader:
-            optimizer.zero_grad()  # Reset loss gradients from previous epoch
+            optimizer.zero_grad()  # Reset loss gradients from previous batch iteration
             loss = calc_loss_batch(input_batch, target_batch, model, device, trainable_token=trainable_token)
             loss.backward()  # Calculate loss gradients
             optimizer.step()  # Update model weights using loss gradients
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     elif args.model_size == "gpt2-large (774M)":
         in_features = 1280
     elif args.model_size == "gpt2-xl (1558M)":
-        in_features = 1280
+        in_features = 1600
     else:
         raise ValueError("Invalid --model_size argument")
 
@@ -286,14 +286,7 @@ if __name__ == "__main__":
     # Instantiate dataloaders
     ###############################
 
-    url = "https://archive.ics.uci.edu/static/public/228/sms+spam+collection.zip"
-    zip_path = "sms_spam_collection.zip"
-    extract_to = "sms_spam_collection"
-    new_file_path = Path(extract_to) / "SMSSpamCollection.tsv"
-
     base_path = Path(".")
-    file_names = ["train.csv", "val.csv", "test.csv"]
-    all_exist = all((base_path / file_name).exists() for file_name in file_names)
 
     tokenizer = tiktoken.get_encoding("gpt2")
 
@@ -351,7 +344,7 @@ if __name__ == "__main__":
     train_losses, val_losses, train_accs, val_accs, examples_seen = train_classifier_simple(
         model, train_loader, val_loader, optimizer, device,
         num_epochs=num_epochs, eval_freq=50, eval_iter=20,
-        tokenizer=tokenizer, max_steps=None, trainable_token=args.trainable_token
+        max_steps=None, trainable_token=args.trainable_token
     )
 
     end_time = time.time()

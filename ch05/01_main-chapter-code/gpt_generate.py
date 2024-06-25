@@ -215,7 +215,7 @@ def load_weights_into_gpt(gpt, params):
     gpt.out_head.weight = assign(gpt.out_head.weight, params["wte"])
 
 
-def generate(model, idx, max_new_tokens, context_size, temperature, top_k=None):
+def generate(model, idx, max_new_tokens, context_size, temperature=0.0, top_k=None, eos_id=None):
 
     # For-loop is the same as before: Get logits, and only focus on last time step
     for _ in range(max_new_tokens):
@@ -245,6 +245,9 @@ def generate(model, idx, max_new_tokens, context_size, temperature, top_k=None):
         else:
             idx_next = torch.argmax(logits, dim=-1, keepdim=True)  # (batch_size, 1)
 
+        if idx_next == eos_id:  # Stop generating early if end-of-sequence token is encountered and eos_id is specified
+            break
+
         # Same as before: append sampled index to the running sequence
         idx = torch.cat((idx, idx_next), dim=1)  # (batch_size, num_tokens+1)
 
@@ -263,13 +266,14 @@ def main(gpt_config, input_prompt, model_size):
     gpt.eval()
 
     tokenizer = tiktoken.get_encoding("gpt2")
+    torch.manual_seed(123)
 
     token_ids = generate(
         model=gpt,
         idx=text_to_token_ids(input_prompt, tokenizer),
-        max_new_tokens=30,
+        max_new_tokens=25,
         context_size=gpt_config["context_length"],
-        top_k=1,
+        top_k=50,
         temperature=1.0
     )
 
@@ -281,7 +285,7 @@ if __name__ == "__main__":
     torch.manual_seed(123)
 
     CHOOSE_MODEL = "gpt2-small (124M)"
-    INPUT_PROMPT = "Every effort moves"
+    INPUT_PROMPT = "Every effort moves you"
 
     BASE_CONFIG = {
         "vocab_size": 50257,     # Vocabulary size

@@ -1,3 +1,5 @@
+# Additional Experiments Classifying the Sentiment of 50k IMDB Movie Reviews
+
 &nbsp;
 ## Step 1: Install Dependencies
 
@@ -12,10 +14,10 @@ pip install -r requirements-extra.txt
 
 The codes are using the 50k movie reviews from IMDb ([dataset source](https://ai.stanford.edu/~amaas/data/sentiment/)) to predict whether a movie review is positive or negative.
 
-Run the following code to create the `train.csv`, `val.csv`, and `test.csv` datasets:
+Run the following code to create the `train.csv`, `validation.csv`, and `test.csv` datasets:
 
 ```bash
-download-prepare-dataset.py
+python download-prepare-dataset.py
 ```
 
 
@@ -54,12 +56,11 @@ Evaluating on the full datasets ...
 Training accuracy: 93.66%
 Validation accuracy: 90.02%
 Test accuracy: 89.96%
-
 ```
 
 ---
 
-A 66M parameter encoder-style [DistilBERT](https://medium.com/huggingface/distilbert-8cf3380435b5) model (distilled down from a 340M parameter BERT model), starting for the pretrained weights and only training the last transformer block plus output layers:
+A 66M parameter encoder-style [DistilBERT](https://arxiv.org/abs/1910.01108) model (distilled down from a 340M parameter BERT model), starting for the pretrained weights and only training the last transformer block plus output layers:
 
 
 ```bash
