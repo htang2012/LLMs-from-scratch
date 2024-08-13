@@ -1,4 +1,4 @@
-# Installing Libraries Used In This Book
+# Installing Python Packages and Libraries Used In This Book
 
 This document provides more information on double-checking your installed Python version and packages. (Please see the [../01_optional-python-setup-preferences](../01_optional-python-setup-preferences) folder for more information on installing Python and Python packages.)
 
@@ -10,6 +10,12 @@ To install these requirements most conveniently, you can use the `requirements.t
 pip install -r requirements.txt
 ```
 
+Alternatively, you can install it via the GitHub URL as follows:
+
+```bash
+pip install -r https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/requirements.txt
+```
+
 
 Then, after completing the installation, please check if all the packages are installed and are up to date using
 
@@ -19,7 +25,7 @@ python python_environment_check.py
 
 <img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/02_installing-python-libraries/check_1.jpg" width="600px">
 
-It's also recommended to check the versions in JupyterLab by running the `jupyter_environment_check.ipynb` in this directory, which should ideally give you the same results as above.
+It's also recommended to check the versions in JupyterLab by running the `python_environment_check.ipynb` in this directory, which should ideally give you the same results as above.
 
 <img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/02_installing-python-libraries/check_2.jpg" width="500px">
 
