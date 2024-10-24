@@ -1,4 +1,4 @@
-name: Test PyTorch 2.0 and 2.4
+name: Test PyTorch 2.0 and 2.5
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        pytorch-version: [ 2.0.1, 2.4.0 ]
+        pytorch-version: [ 2.0.1, 2.5.0 ]
 
     steps:
     - uses: actions/checkout@v4
@@ -39,12 +39,14 @@ jobs:
         pip install pytest nbval
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         pip install torch==${{ matrix.pytorch-version }}
+        pip install -r ch05/07_gpt_to_llama/tests/test-requirements-extra.txt
 
     - name: Test Selected Python Scripts
       run: |
         pytest setup/02_installing-python-libraries/tests.py
         pytest ch04/01_main-chapter-code/tests.py
         pytest ch05/01_main-chapter-code/tests.py
+        pytest ch05/07_gpt_to_llama/tests/tests.py
         pytest ch06/01_main-chapter-code/tests.py
 
     - name: Validate Selected Jupyter Notebooks
