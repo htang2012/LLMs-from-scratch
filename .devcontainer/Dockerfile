@@ -24,12 +24,12 @@ RUN echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
 #RUN pip install poetry==1.3.2
 
 # Install necessary packages
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends bash nano && \
-    rm -rf /var/lib/apt/lists/*
+#RUN apt-get update && \
+#    apt-get install -y --no-install-recommends bash nano && \
+#    rm -rf /var/lib/apt/lists/*
 
     # Customize bash prompt
-RUN echo "PS1='\[\e[1;34m\]\u@\h:\w\$ \[\e[0m\]'" >> /root/.bashrc
+#RUN echo "PS1='\[\e[1;34m\]\u@\h:\w\$ \[\e[0m\]'" >> /root/.bashrc
 
 # Set the default command to bash
 CMD ["bash"]
@@ -41,7 +41,7 @@ CMD ["bash"]
 # ********************************************************
 
 # [Optional] Set the default user. Omit if you want to keep the default as root.
-RUN pip install --upgrade pip
+#RUN pip install --upgrade pip
 
 
 #COPY ../requirements.txt .
