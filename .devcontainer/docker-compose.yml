@@ -19,10 +19,6 @@ services:
       build:
         context: .
         dockerfile: Dockerfile
-        args:
-          HTTP_PROXY: http://proxy-us.yourproxy.com:911
-          HTTPS_PROXY: http://proxy-us.yourproxy.com:912
-            #runtime: nvidia
       environment:
         - NVIDIA_VISIBLE_DEVICES=all
         - OMPI_MCA_btl_vader_single_copy_mechanism=none
