@@ -16,7 +16,7 @@ def main():
     contextvectors = simple_self_attention(inputs)
     print(f"Simple Attention contextvectors: \n {contextvectors}, {contextvectors.shape}")
     
-    torch.manual_seed(123)
+    torch.manual_seed(789)
     self_attention = SelfAttention(3, 2)
     contextvectors = self_attention(inputs)
     print(f"Attention contextvectors: \n {contextvectors}, {contextvectors.shape}")
