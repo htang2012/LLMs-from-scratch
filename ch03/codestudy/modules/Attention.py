@@ -37,4 +37,3 @@ class SelfAttention(nn.Module):
         )
         context_vectors = attn_weights @ values
         return context_vectors
-        
