@@ -1,3 +1,3 @@
-from .Attention import SimpleSelfAttention, SelfAttention
+from .Attention import SimpleSelfAttention, SelfAttention, CasualAttention
 
-__all__ = ['SimpleSelfAttention', 'SelfAttention']
+__all__ = ['SimpleSelfAttention', 'SelfAttention', 'CasualAttention']
