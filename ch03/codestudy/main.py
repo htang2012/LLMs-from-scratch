@@ -13,7 +13,7 @@ def main():
     ] )  
     
     simple_self_attention = SimpleSelfAttention()
-    contextvectors = simple_self_attention.contextvectors(inputs)
+    contextvectors = simple_self_attention(inputs)
     print(f"contextvectors: \n {contextvectors}, {contextvectors.shape}")
 
 if __name__ == '__main__':
