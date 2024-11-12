@@ -1,5 +1,5 @@
 import torch
-from modules import SimpleSelfAttention
+from modules import SimpleSelfAttention, SelfAttention
 
 def main():
     inputs = torch.tensor(
@@ -14,7 +14,12 @@ def main():
     
     simple_self_attention = SimpleSelfAttention()
     contextvectors = simple_self_attention(inputs)
-    print(f"contextvectors: \n {contextvectors}, {contextvectors.shape}")
+    print(f"Simple Attention contextvectors: \n {contextvectors}, {contextvectors.shape}")
+    
+    torch.manual_seed(123)
+    self_attention = SelfAttention(3, 2)
+    contextvectors = self_attention(inputs)
+    print(f"Attention contextvectors: \n {contextvectors}, {contextvectors.shape}")
 
 if __name__ == '__main__':
     main()
