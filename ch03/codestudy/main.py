@@ -21,10 +21,12 @@ def main():
     contextvectors = self_attention(inputs)
     print(f"Attention contextvectors: \n {contextvectors}, {contextvectors.shape}")
     
-    torch.manual_seed(789)
-    causal_attention = CasualAttention(3, 2)
-    inputs = inputs.unsqueeze(0)
-    contextvectors = causal_attention(inputs)
+    torch.manual_seed(123)
+    input_batch = torch.stack((inputs, inputs), dim=0)
+    print(input_batch.shape)
+    context_length = input_batch.shape[1]
+    causal_attention = CasualAttention(3, 2, context_length, 0.0)
+    contextvectors = causal_attention(input_batch)
     print(f"Attention contextvectors: \n {contextvectors}, {contextvectors.shape}")
     
     
