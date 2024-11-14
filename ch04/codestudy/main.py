@@ -80,6 +80,30 @@ def main():
     print("\nOutput:", out)
     print("Output length:", len(out[0]))
     print("Output text:", decoded_text)
+    
+    
+    
+    # Model calculations:
+    
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total number of parameters: {total_params:,}")
+    
+    print("Token embedding layer shape:", model.tok_emb.weight.shape)
+    print("Output layer shape:", model.out_head.weight.shape)
+        
+    total_params_gpt2 = (
+        total_params - sum(p.numel()
+        for p in model.out_head.parameters())
+        )
+    print(f"Number of trainable parameters "
+    f"considering weight tying: {total_params_gpt2:,}"
+    )
+    
+    
+    print("Model Layer Parameters:\n")
+    for name, layer in model.named_children():
+        print(f"{name}: {layer}")
+        
 
 
 if __name__ == "__main__":
