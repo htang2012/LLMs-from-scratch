@@ -99,11 +99,15 @@ def main():
     f"considering weight tying: {total_params_gpt2:,}"
     )
     
+    total_size_bytes = total_params_gpt2 * 4  # fp32
+    total_size_mb = total_size_bytes/(1024 * 1024)
+    print(f"Total size of the model: {total_size_mb:.2f} MB")
     
+    '''
     print("Model Layer Parameters:\n")
     for name, layer in model.named_children():
         print(f"{name}: {layer}")
-        
+    '''    
 
 
 if __name__ == "__main__":
