@@ -116,6 +116,10 @@ __pycache__/
 *$py.class
 *.key
 solution/
+**/gpt2/
+**/save_tokenizer
+gpt2_model_weights.pth
+
 
 # C extensions
 *.so
