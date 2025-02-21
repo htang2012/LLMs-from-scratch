@@ -31,6 +31,7 @@ appendix-E/01_main-chapter-code/gpt2
 
 ch05/01_main-chapter-code/gpt2/
 ch05/02_alternative_weight_loading/checkpoints
+ch05/02_alternative_weight_loading/*.safetensors
 ch05/01_main-chapter-code/model.pth
 ch05/01_main-chapter-code/model_and_optimizer.pth
 ch05/03_bonus_pretraining_on_gutenberg/model_checkpoints
@@ -100,6 +101,13 @@ ch07/01_main-chapter-code/instruction-data-with-response-phi3-prompt.json
 ch07/02_dataset-utilities/instruction-examples-modified.json
 ch07/04_preference-tuning-with-dpo/gpt2-medium355M-sft.pth
 ch07/04_preference-tuning-with-dpo/loss-plot.pdf
+
+# Tokenizer files
+ch02/05_bpe-from-scratch/bpe_merges.txt
+ch02/05_bpe-from-scratch/encoder.json
+ch02/05_bpe-from-scratch/vocab.bpe
+ch02/05_bpe-from-scratch/vocab.json
+
 
 # Other
 ch0?/0?_user_interface/.chainlit/
@@ -240,6 +248,9 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.python-version
+uv.lock
+pixi.lock
 env/
 venv/
 ENV/
@@ -279,3 +290,7 @@ cython_debug/
 
 # vscode
 .vscode/
+
+# pixi environments
+.pixi
+*.egg-info
